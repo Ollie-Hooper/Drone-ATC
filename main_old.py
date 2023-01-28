@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from drone_atc.animation import Animator
-from drone_atc.model import DroneATCModel
+from drone_atc_old.animation import Animator
+from drone_atc_old.model import DroneATCModel
 
 from matplotlib.animation import FuncAnimation
 

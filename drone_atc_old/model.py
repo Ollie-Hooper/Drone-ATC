@@ -7,7 +7,7 @@ import numpy as np
 from mesa import Model
 from mesa.time import RandomActivation
 
-from drone_atc.drone import Drone
+from drone_atc_old.drone import Drone
 
 
 class DroneATCModel(Model):
