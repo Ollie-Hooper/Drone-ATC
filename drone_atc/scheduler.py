@@ -1,11 +1,93 @@
 from multiprocessing import Process, Barrier
+from multiprocessing.shared_memory import SharedMemory
+
+import numpy as np
 
 
-class MPScheduler(Process):
-    def __init__(self, barrier: Barrier, attr_buffer):
+class MPModelManager:
+    #  Creates and assigns agents
+    def __init__(self, child, n_children, agent, n_agents, n_steps):
+        self.agent = agent
+        self.agent_attrs_shm = None
+        self.n_attributes = 4
+        self.map_shm = None
+        self.child = child
+        self.n_children = n_children
+        self.n_agents = n_agents
+        self.n_steps = n_steps
+        self.create_process_agent_map()
+        self.create_agent_attrs()
+
+    def go(self):
+        barrier = Barrier(self.n_children)
+
+        schedulers = []
+        for i in range(self.n_children):
+            schedulers.append(
+                Model(barrier, self.agent, self.map_shm.name, self.agent_attrs_shm.name, self.n_children, self.n_agents,
+                      self.n_attributes, self.n_steps, i))
+
+        for s in schedulers:
+            s.start()
+
+        for s in schedulers:
+            s.join()
+
+    def __enter__(self, *args):
+        return self
+
+    def __exit__(self, *args):
+        self.map_shm.close()
+        self.map_shm.unlink()
+        self.agent_attrs_shm.close()
+        self.agent_attrs_shm.unlink()
+
+    def create_process_agent_map(self):
+        a = np.arange(self.n_agents * self.n_children, dtype=np.int32).reshape(self.n_children, -1)
+        self.map_shm = SharedMemory(create=True, size=a.nbytes)
+        b = np.ndarray(a.shape, dtype=a.dtype, buffer=self.map_shm.buf)
+        b[:] = a[:]
+
+    def create_agent_attrs(self):
+        a = np.random.random((self.n_children*self.n_agents, self.n_attributes))  # , dtype=np.float64)
+        self.agent_attrs_shm = SharedMemory(create=True, size=a.nbytes)
+        b = np.ndarray(a.shape, dtype=a.dtype, buffer=self.agent_attrs_shm.buf)
+        b[:] = a[:]
+
+
+class Model(Process):
+    def __init__(self, barrier: Barrier, agent, map_buf_name, attr_buf_name, n_processes, n_agents, n_attributes,
+                 n_steps, process_id):
         super().__init__()
+        self.n_agents = n_agents
+        self.n_attributes = n_attributes
+        self.agent = agent
+        self.agent_attrs = None
+        self.global_agent_attrs = None
+        self.agent_attrs_shm = None
+        self.map = None
+        self.map_shm = None
         self.barrier = barrier
-        self.attr_buffer = attr_buffer
+        self.id = process_id
+        self.map_buf_name = map_buf_name
+        self.attr_buf_name = attr_buf_name
+        self.n_processes = n_processes
+        self.n_steps = n_steps
+
+    def run(self):
+        self.map_shm = SharedMemory(name=self.map_buf_name)
+        self.map = np.ndarray((self.n_processes,self.n_agents), dtype=np.int32, buffer=self.map_shm.buf)
+        self.agent_attrs_shm = SharedMemory(name=self.attr_buf_name)
+        self.global_agent_attrs = np.ndarray((self.n_agents*self.n_processes, self.n_attributes), dtype=np.float64,
+                                             buffer=self.agent_attrs_shm.buf)
+        self.agent_attrs = np.ndarray(self.global_agent_attrs.shape, dtype=self.global_agent_attrs.dtype)
+        self.agent_attrs[:] = self.global_agent_attrs[:]
+
+        for i in range(self.n_steps):
+            self.step()
+
+        self.map_shm.close()
+        self.agent_attrs_shm.close()
 
     def update_agents(self, additions, deletions, modifications):
         pass
@@ -17,7 +99,9 @@ class MPScheduler(Process):
         self.barrier.wait()
 
     def read(self):
-        print(self.attr_buffer)
+        self.agent_attrs[:] = self.global_agent_attrs[:]
 
     def write(self):
-        pass
+        for agent in self.map[self.id]:
+            self.global_agent_attrs[agent] = self.agent.step(self.agent_attrs[agent], np.concatenate(
+                (self.agent_attrs[:agent], self.agent_attrs[agent + 1:])))
