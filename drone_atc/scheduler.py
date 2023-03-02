@@ -11,7 +11,7 @@ class MPModelManager:
         self.analytics_shm = None
         self.agent = agent
         self.agent_attrs_shm = None
-        self.n_attributes = 4
+        self.n_attributes = len(agent.attributes)
         self.map_shm = None
         self.child = child
         self.n_children = n_children

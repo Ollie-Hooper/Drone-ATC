@@ -5,33 +5,27 @@ import numpy as np
 from numpy import sqrt, dot
 
 
-@dataclass
-class AgentAttributes:
-    unique_id: str
-
-
 class Agent:
     @staticmethod
-    def step(attr: AgentAttributes, *args, **kwargs) -> AgentAttributes:
+    def step(attr: np.array, alters: np.array, *args, **kwargs) -> np.array:
         return attr
 
 
-class DroneAttributes(AgentAttributes):
-    pass
-
-
 class Drone(Agent):
-    _rx = 0
-    _ry = 1
-    _vx = 2
-    _vy = 3
-    _avoid = 4
+    global RX
+    global RY
+    global VX
+    global VY
+    global AVOID
+    attributes = ['RX', 'RY', 'VX', 'VY', 'AVOID']
+    for i, k in enumerate(attributes):
+        globals()[k] = i
 
     @staticmethod
-    def step(attr: DroneAttributes, alters: List[DroneAttributes], *args, **kwargs) -> DroneAttributes:
+    def step(attr: np.array, alters: np.array, *args, **kwargs) -> np.array:
         for alt in alters:
             d_min = Drone.calc_min_distance(attr, alt)
-            #print(d_min)
+            # print(d_min)
 
         return attr
 
@@ -43,10 +37,10 @@ class Drone(Agent):
     def calc_min_distance(attr, alter):
         mag = lambda x: sqrt(x.dot(x))
 
-        r = np.array([attr[0], attr[1]])
-        v = np.array([attr[2], attr[3]])
-        alt_r = np.array([alter[0], alter[1]])
-        alt_v = np.array([alter[2], alter[3]])
+        r = np.array([attr[RX], attr[RY]])
+        v = np.array([attr[VX], attr[VY]])
+        alt_r = np.array([alter[RX], alter[RY]])
+        alt_v = np.array([alter[VX], alter[VY]])
 
         r_ab = alt_r - r
         v_ab = alt_v - v
