@@ -5,6 +5,8 @@ from drone_atc.tools import mag
 
 
 class Agent:
+    attributes = []
+
     @staticmethod
     def step(uid, model, attr: np.array, alters: np.array, *args, **kwargs) -> np.array:
         return attr
@@ -24,10 +26,10 @@ class Drone(Agent):
 
     @staticmethod
     def step(uid, model, attrs: np.array, *args, **kwargs) -> np.array:
-        s = model.attrs['s']
-        a_max = model.attrs['a_max']
-        v_cs = model.attrs['v_cs']
-        r_com = model.attrs['r_com']
+        s = model.attrs.s
+        a_max = model.attrs.a_max
+        v_cs = model.attrs.v_cs
+        r_com = model.attrs.r_com
 
         attr = attrs[uid]
         r = np.array([attr[RX], attr[RY]])

@@ -4,33 +4,30 @@ from multiprocessing.shared_memory import SharedMemory
 
 import numpy as np
 
-from drone_atc.index import NoIndex, BruteForceIndex, RTree, Quadtree, BallTree
+from drone_atc.config import SHM, ModelSHM, ModelConfig
 
 
 class MPModelManager:
     #  Creates and assigns agents
-    def __init__(self, child, n_children, agent, n_agents, n_steps):
-        self.analytics_shm = None
-        self.agent = agent
-        self.agent_attrs_shm = None
-        self.n_attributes = len(agent.attributes)
-        self.map_shm = None
-        self.child = child
-        self.n_children = n_children
-        self.n_agents = n_agents
-        self.n_steps = n_steps
-        self.create_process_agent_map()
-        self.create_agent_attrs()
-        self.create_analytics()
+    def __init__(self, config: ModelConfig):
+        self.config = config
+        self.model_shm = None
 
     def go(self):
-        barrier = Barrier(self.n_children)
+        n_model_processes = self.config.n_processes - 1
+
+        process_agent_map = self.create_process_agent_map(n_model_processes)
+        agent_attrs = self.create_agent_attrs()
+        analytics = self.create_analytics_array(n_model_processes)
+
+        self.setup_shared_memory(process_agent_map, agent_attrs, analytics)
+
+        barrier = Barrier(n_model_processes)
 
         schedulers = []
-        for i in range(self.n_children):
+        for i in range(n_model_processes):
             schedulers.append(
-                Model(barrier, self.agent, self.map_shm.name, self.agent_attrs_shm.name, self.analytics_shm.name,
-                      self.n_children, self.n_agents, self.n_attributes, self.n_steps, i))
+                Model(self.config, self.model_shm, barrier, i))
 
         for s in schedulers:
             s.start()
@@ -38,91 +35,86 @@ class MPModelManager:
         for s in schedulers:
             s.join()
 
-        return np.ndarray((self.n_children, self.n_steps), dtype=np.float64, buffer=self.analytics_shm.buf)[:]
+        analytics = self.get_shm_array(self.model_shm.analytics)[:]
+
+        return analytics
 
     def __enter__(self, *args):
         return self
 
     def __exit__(self, *args):
-        self.map_shm.close()
-        self.map_shm.unlink()
-        self.agent_attrs_shm.close()
-        self.agent_attrs_shm.unlink()
-        self.analytics_shm.close()
-        self.analytics_shm.unlink()
+        if self.model_shm is not None:
+            for k, shm in self.model_shm.__dict__.items():
+                shm.shm.close()
+                shm.shm.unlink()
 
-    def create_process_agent_map(self):
-        a = np.arange(self.n_agents * self.n_children, dtype=np.int32).reshape(self.n_children, -1)
-        self.map_shm = SharedMemory(create=True, size=a.nbytes)
-        b = np.ndarray(a.shape, dtype=a.dtype, buffer=self.map_shm.buf)
-        b[:] = a[:]
+    def create_process_agent_map(self, n_processes):
+        return np.arange(self.config.params.n_agents, dtype=np.int32).reshape(n_processes, -1)
 
     def create_agent_attrs(self):
-        a = np.random.random((self.n_children * self.n_agents, self.n_attributes))  # , dtype=np.float64)
-        self.agent_attrs_shm = SharedMemory(create=True, size=a.nbytes)
-        b = np.ndarray(a.shape, dtype=a.dtype, buffer=self.agent_attrs_shm.buf)
-        b[:] = a[:]
+        return np.random.random((self.config.params.n_agents, len(self.config.agent.attributes)))
 
-    def create_analytics(self):
-        a = np.ndarray((self.n_children, self.n_steps), dtype=np.float64)
-        self.analytics_shm = SharedMemory(create=True, size=a.nbytes)
-        b = np.ndarray(a.shape, dtype=a.dtype, buffer=self.analytics_shm.buf)
+    def create_analytics_array(self, n_processes):
+        return np.ndarray((n_processes, self.config.n_steps), dtype=np.float64)
+
+    def setup_shared_memory(self, map_array, agent_attrs, analytics):
+        map_shm = self.create_shm(map_array)
+        agent_shm = self.create_shm(agent_attrs)
+        analytics_shm = self.create_shm(analytics)
+        self.model_shm = ModelSHM(map_shm, agent_shm, analytics_shm)
+
+    @staticmethod
+    def create_shm(a):
+        shm = SharedMemory(create=True, size=a.nbytes)
+        b = np.ndarray(a.shape, dtype=a.dtype, buffer=shm.buf)
         b[:] = a[:]
+        return SHM(shm, a.shape, a.dtype)
+
+    @staticmethod
+    def get_shm_array(shm):
+        return np.ndarray(shm.shape, dtype=shm.dtype, buffer=shm.shm.buf)
 
 
 class Model(Process):
-    def __init__(self, barrier: Barrier, agent, map_shm_name, attr_shm_name, analytics_shm_name, n_processes, n_agents,
-                 n_attributes, n_steps, process_id):
+    def __init__(self, config: ModelConfig, model_shm: ModelSHM, barrier, process_id):
         super().__init__()
-        self.analytics = None
-        self.analytics_shm_name = analytics_shm_name
-        self.analytics_shm = None
-        self.n_agents = n_agents
-        self.n_attributes = n_attributes
-        self.agent = agent
-        self.agent_attrs = None
-        self.global_agent_attrs = None
-        self.agent_attrs_shm = None
-        self.map = None
-        self.map_shm = None
+        self.config = config
+        self.model_shm = model_shm
         self.barrier = barrier
         self.id = process_id
-        self.map_shm_name = map_shm_name
-        self.attr_shm_name = attr_shm_name
-        self.n_processes = n_processes
-        self.n_steps = n_steps
 
-        self.attrs = dict(
-            s=0.1,
-            a_max=0.1,
-            v_cs=0.1,
-            r_com=0.1,
-        )
-        self.index = BallTree(n_agents*n_processes)
+        self.map = None
+        self.global_agent_attrs = None
+        self.agent_attrs = None
+        self.analytics = None
+
+        self.agent = self.config.agent
+        self.attrs = self.config.params
+        self.index = self.config.spatial_index(self.config.params.n_agents)
+
+    def reconnect_shm(self):
+        self.model_shm.map.shm = SharedMemory(name=self.model_shm.map.shm.name)
+        self.model_shm.agents.shm = SharedMemory(name=self.model_shm.agents.shm.name)
+        self.model_shm.analytics.shm = SharedMemory(name=self.model_shm.analytics.shm.name)
 
     def run(self):
-        self.map_shm = SharedMemory(name=self.map_shm_name)
-        self.map = np.ndarray((self.n_processes, self.n_agents), dtype=np.int32, buffer=self.map_shm.buf)
+        self.map = MPModelManager.get_shm_array(self.model_shm.map)
+        self.global_agent_attrs = MPModelManager.get_shm_array(self.model_shm.agents)
+        self.analytics = MPModelManager.get_shm_array(self.model_shm.analytics)
 
-        self.analytics_shm = SharedMemory(name=self.analytics_shm_name)
-        self.analytics = np.ndarray((self.n_processes, self.n_steps), dtype=np.float64, buffer=self.analytics_shm.buf)
-
-        self.agent_attrs_shm = SharedMemory(name=self.attr_shm_name)
-        self.global_agent_attrs = np.ndarray((self.n_agents * self.n_processes, self.n_attributes), dtype=np.float64,
-                                             buffer=self.agent_attrs_shm.buf)
         self.agent_attrs = np.ndarray(self.global_agent_attrs.shape, dtype=self.global_agent_attrs.dtype)
         self.agent_attrs[:] = self.global_agent_attrs[:]
 
-        for i in range(self.n_steps):
-            self.step()
+        for i in range(self.config.n_steps):
+            self.step(i)
 
-        self.map_shm.close()
-        self.agent_attrs_shm.close()
+        for k, shm in self.model_shm.__dict__.items():
+            shm.shm.close()
 
     def update_agents(self, additions, deletions, modifications):
         pass
 
-    def step(self):
+    def step(self, n):
         ts = time.time()
         self.read()
         self.update_index()
@@ -130,7 +122,7 @@ class Model(Process):
         self.write()
         self.barrier.wait()
         te = time.time()
-        self.analytics[self.id] = te - ts
+        self.analytics[self.id, n] = te - ts
 
     def read(self):
         self.agent_attrs[:] = self.global_agent_attrs[:]
