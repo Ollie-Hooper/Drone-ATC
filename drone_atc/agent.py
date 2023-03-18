@@ -1,17 +1,12 @@
-from dataclasses import dataclass
-from typing import List
-
 import numpy as np
 from numpy import sqrt, dot
 
-
-def mag(x):
-    return sqrt(x.dot(x))
+from drone_atc.tools import mag
 
 
 class Agent:
     @staticmethod
-    def step(attr: np.array, alters: np.array, *args, **kwargs) -> np.array:
+    def step(uid, model, attr: np.array, alters: np.array, *args, **kwargs) -> np.array:
         return attr
 
 
@@ -23,24 +18,27 @@ class Drone(Agent):
     global T_RX
     global T_RY
     global AVOIDING
-    global S
-    global V_CS
-    global A_MAX
-    attributes = ['RX', 'RY', 'VX', 'VY', 'T_RX', 'T_RY', 'AVOIDING', 'S', 'V_CS', 'A_MAX']
+    attributes = ['RX', 'RY', 'VX', 'VY', 'T_RX', 'T_RY', 'AVOIDING']
     for i, k in enumerate(attributes):
         globals()[k] = i
 
     @staticmethod
-    def step(attr: np.array, alters: np.array, *args, **kwargs) -> np.array:
+    def step(uid, model, attrs: np.array, *args, **kwargs) -> np.array:
+        s = model.attrs['s']
+        a_max = model.attrs['a_max']
+        v_cs = model.attrs['v_cs']
+        r_com = model.attrs['r_com']
+
+        attr = attrs[uid]
         r = np.array([attr[RX], attr[RY]])
         v = np.array([attr[VX], attr[VY]])
         target_r = np.array([attr[T_RX], attr[T_RY]])
-        s = attr[S]
-        a_max = attr[A_MAX]
-        v_cs = attr[V_CS]
         avoiding = False
 
-        for alt in alters:
+        in_range = model.index.agents_in_range(uid, r_com)
+        in_range = np.delete(in_range, in_range == uid)
+
+        for alt in attrs[in_range]:
             d_min = Drone.calc_min_distance(attr, alt)
             if d_min < s:
                 avoiding = True

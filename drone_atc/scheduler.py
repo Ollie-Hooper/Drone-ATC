@@ -4,6 +4,8 @@ from multiprocessing.shared_memory import SharedMemory
 
 import numpy as np
 
+from drone_atc.index import NoIndex, BruteForceIndex, RTree, Quadtree, BallTree
+
 
 class MPModelManager:
     #  Creates and assigns agents
@@ -90,6 +92,14 @@ class Model(Process):
         self.n_processes = n_processes
         self.n_steps = n_steps
 
+        self.attrs = dict(
+            s=0.1,
+            a_max=0.1,
+            v_cs=0.1,
+            r_com=0.1,
+        )
+        self.index = BallTree(n_agents*n_processes)
+
     def run(self):
         self.map_shm = SharedMemory(name=self.map_shm_name)
         self.map = np.ndarray((self.n_processes, self.n_agents), dtype=np.int32, buffer=self.map_shm.buf)
@@ -115,6 +125,7 @@ class Model(Process):
     def step(self):
         ts = time.time()
         self.read()
+        self.update_index()
         self.barrier.wait()
         self.write()
         self.barrier.wait()
@@ -124,7 +135,9 @@ class Model(Process):
     def read(self):
         self.agent_attrs[:] = self.global_agent_attrs[:]
 
+    def update_index(self):
+        self.index.update(self.agent_attrs[:, 0:2])
+
     def write(self):
         for agent in self.map[self.id]:
-            self.global_agent_attrs[agent] = self.agent.step(self.agent_attrs[agent], np.concatenate(
-                (self.agent_attrs[:agent], self.agent_attrs[agent + 1:])))
+            self.global_agent_attrs[agent] = self.agent.step(agent, self, self.agent_attrs)
