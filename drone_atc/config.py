@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from multiprocessing.shared_memory import SharedMemory
 
 from drone_atc.agent import Agent
@@ -35,3 +36,17 @@ class ModelConfig:
     n_processes: int
     n_steps: int
     params: ModelParameters
+    animate: bool
+
+
+class Analytics(Enum):
+    STEP_EXECUTION_TIME = 0
+    READ_TIME = 1
+    WRITE_TIME = 2
+    INDEX_UPDATE_TIME = 3
+    AGENT_STEP_MIN = 4
+    AGENT_STEP_MAX = 5
+    AGENT_STEP_MEAN = 6
+    # RANGE_SEARCH_MIN = 2
+    # RANGE_SEARCH_MAX = 3
+    # RANGE_SEARCH_MEAN = 4

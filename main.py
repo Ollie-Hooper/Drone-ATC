@@ -9,11 +9,14 @@ from drone_atc.scheduler import MPModelManager, Model
 
 def main():
     n_processes = multiprocessing.cpu_count()
-    agents_per_process = 100
-    n_steps = 5
+    agents_per_process = 500
+    n_steps = 1
+    animate = False
+
+    n_agents = 1000#agents_per_process * (n_processes - 1) if animate else agents_per_process*n_processes
 
     params = ModelParameters(
-        n_agents=agents_per_process * (n_processes - 1),
+        n_agents=n_agents,
         s=0.1,
         a_max=0.1,
         v_cs=0.1,
@@ -25,6 +28,7 @@ def main():
         n_processes=n_processes,
         n_steps=n_steps,
         params=params,
+        animate=False,
     )
 
     with MPModelManager(config) as model:

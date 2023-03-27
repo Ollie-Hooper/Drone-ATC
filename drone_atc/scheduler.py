@@ -4,7 +4,9 @@ from multiprocessing.shared_memory import SharedMemory
 
 import numpy as np
 
-from drone_atc.config import SHM, ModelSHM, ModelConfig
+from drone_atc.analytics import Analyser
+from drone_atc.config import SHM, ModelSHM, ModelConfig, Analytics
+from drone_atc.shared_mem import create_shm, get_shm_array
 
 
 class MPModelManager:
@@ -14,7 +16,7 @@ class MPModelManager:
         self.model_shm = None
 
     def go(self):
-        n_model_processes = self.config.n_processes - 1
+        n_model_processes = self.config.n_processes - 1 if self.config.animate else self.config.n_processes
 
         process_agent_map = self.create_process_agent_map(n_model_processes)
         agent_attrs = self.create_agent_attrs()
@@ -24,18 +26,21 @@ class MPModelManager:
 
         barrier = Barrier(n_model_processes)
 
-        schedulers = []
+        processes = []
         for i in range(n_model_processes):
-            schedulers.append(
+            processes.append(
                 Model(self.config, self.model_shm, barrier, i))
 
-        for s in schedulers:
+        if self.config.animate:
+            processes.append(Analyser(self.model_shm))
+        
+        for s in processes:
             s.start()
 
-        for s in schedulers:
+        for s in processes:
             s.join()
 
-        analytics = self.get_shm_array(self.model_shm.analytics)[:]
+        analytics = get_shm_array(self.model_shm.analytics).copy()
 
         return analytics
 
@@ -49,30 +54,23 @@ class MPModelManager:
                 shm.shm.unlink()
 
     def create_process_agent_map(self, n_processes):
-        return np.arange(self.config.params.n_agents, dtype=np.int32).reshape(n_processes, -1)
+        split_evenly = n_processes*(self.config.params.n_agents // n_processes)
+        leftover = self.config.params.n_agents % n_processes
+        initial_array = np.arange(self.config.params.n_agents, dtype=np.int32)
+        agents = np.append(initial_array, -np.ones(n_processes - leftover, dtype=np.int32)) if leftover else initial_array
+        return agents.reshape(n_processes, -1)
 
     def create_agent_attrs(self):
         return np.random.random((self.config.params.n_agents, len(self.config.agent.attributes)))
 
     def create_analytics_array(self, n_processes):
-        return np.ndarray((n_processes, self.config.n_steps), dtype=np.float64)
+        return np.zeros((n_processes, self.config.n_steps, len(Analytics)), dtype=np.float64)
 
     def setup_shared_memory(self, map_array, agent_attrs, analytics):
-        map_shm = self.create_shm(map_array)
-        agent_shm = self.create_shm(agent_attrs)
-        analytics_shm = self.create_shm(analytics)
+        map_shm = create_shm(map_array)
+        agent_shm = create_shm(agent_attrs)
+        analytics_shm = create_shm(analytics)
         self.model_shm = ModelSHM(map_shm, agent_shm, analytics_shm)
-
-    @staticmethod
-    def create_shm(a):
-        shm = SharedMemory(create=True, size=a.nbytes)
-        b = np.ndarray(a.shape, dtype=a.dtype, buffer=shm.buf)
-        b[:] = a[:]
-        return SHM(shm, a.shape, a.dtype)
-
-    @staticmethod
-    def get_shm_array(shm):
-        return np.ndarray(shm.shape, dtype=shm.dtype, buffer=shm.shm.buf)
 
 
 class Model(Process):
@@ -98,9 +96,9 @@ class Model(Process):
         self.model_shm.analytics.shm = SharedMemory(name=self.model_shm.analytics.shm.name)
 
     def run(self):
-        self.map = MPModelManager.get_shm_array(self.model_shm.map)
-        self.global_agent_attrs = MPModelManager.get_shm_array(self.model_shm.agents)
-        self.analytics = MPModelManager.get_shm_array(self.model_shm.analytics)
+        self.map = get_shm_array(self.model_shm.map)
+        self.global_agent_attrs = get_shm_array(self.model_shm.agents)
+        self.analytics = get_shm_array(self.model_shm.analytics)
 
         self.agent_attrs = np.ndarray(self.global_agent_attrs.shape, dtype=self.global_agent_attrs.dtype)
         self.agent_attrs[:] = self.global_agent_attrs[:]
@@ -116,20 +114,39 @@ class Model(Process):
 
     def step(self, n):
         ts = time.time()
-        self.read()
-        self.update_index()
+        self.read(n)
+        self.update_index(n)
         self.barrier.wait()
-        self.write()
+        self.write(n)
         self.barrier.wait()
         te = time.time()
-        self.analytics[self.id, n] = te - ts
+        self.analytics[self.id, n, Analytics.STEP_EXECUTION_TIME.value] = te - ts
 
-    def read(self):
+    def read(self, n):
+        ts = time.time()
         self.agent_attrs[:] = self.global_agent_attrs[:]
+        te = time.time()
+        self.analytics[self.id, n, Analytics.READ_TIME.value] = te - ts
 
-    def update_index(self):
+    def update_index(self, n):
+        ts = time.time()
         self.index.update(self.agent_attrs[:, 0:2])
+        te = time.time()
+        self.analytics[self.id, n, Analytics.INDEX_UPDATE_TIME.value] = te - ts
 
-    def write(self):
-        for agent in self.map[self.id]:
+    def write(self, n):
+        _ts = time.time()
+        times = np.empty(len(self.map[self.id]))
+        for i, agent in enumerate(self.map[self.id]):
+            if agent == -1:
+                continue
+            ts = time.time()
             self.global_agent_attrs[agent] = self.agent.step(agent, self, self.agent_attrs)
+            te = time.time()
+            times[i] = te - ts
+        _te = time.time()
+
+        self.analytics[self.id, n, Analytics.AGENT_STEP_MIN.value] = min(times)
+        self.analytics[self.id, n, Analytics.AGENT_STEP_MAX.value] = max(times)
+        self.analytics[self.id, n, Analytics.AGENT_STEP_MEAN.value] = times.mean()
+        self.analytics[self.id, n, Analytics.WRITE_TIME.value] = _te - _ts

@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import sqrt, dot
+from numba import jit
 
 from drone_atc.tools import mag
 
@@ -25,7 +26,7 @@ class Drone(Agent):
         globals()[k] = i
 
     @staticmethod
-    def step(uid, model, attrs: np.array, *args, **kwargs) -> np.array:
+    def step(uid, model, attrs: np.array) -> np.array:
         s = model.attrs.s
         a_max = model.attrs.a_max
         v_cs = model.attrs.v_cs
@@ -55,16 +56,27 @@ class Drone(Agent):
 
         attr[AVOIDING] = avoiding
 
+        r = r + v
+
+        attr[RX] = r[0]
+        attr[RY] = r[1]
+
+        attr[VX] = v[0]
+        attr[VY] = v[1]
+
         return attr
 
     @staticmethod
+    @jit(nopython=True, cache=True)
     def accelerate(v, target_v, a_max, v_cs):
         delta_v = target_v - v
-        a = min(delta_v, a_max * delta_v / mag(delta_v), key=mag)
+        max_a = a_max * delta_v / mag(delta_v)
+        a = max_a if mag(delta_v) > mag(max_a) else delta_v
         v = v_cs * (v + a) / mag(v + a)
         return v
 
     @staticmethod
+    @jit(nopython=True, cache=True)
     def calc_min_distance(attr, alter):
         r = np.array([attr[RX], attr[RY]])
         v = np.array([attr[VX], attr[VY]])
