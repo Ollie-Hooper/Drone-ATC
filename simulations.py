@@ -4,13 +4,13 @@ import time
 import numpy as np
 from matplotlib import pyplot as plt
 
-from drone_atc.agent import Drone
+from drone_atc import drone
 from drone_atc.config import ModelConfig, ModelParameters, Analytics
 from drone_atc.index import NoIndex, BruteForceIndex, RTree, Quadtree, BallTree
 from drone_atc.scheduler import MPModelManager, Model
 
 
-def run_sim(n_processes=multiprocessing.cpu_count(), n_agents=10000, index=BallTree):
+def run_sim(n_processes=multiprocessing.cpu_count(), n_agents=10000, index=NoIndex):
     params = ModelParameters(
         n_agents=n_agents,
         s=0.1,
@@ -19,10 +19,10 @@ def run_sim(n_processes=multiprocessing.cpu_count(), n_agents=10000, index=BallT
         r_com=0.1,
     )
     config = ModelConfig(
-        agent=Drone,
+        agent='drone',
         spatial_index=index,
         n_processes=n_processes,
-        n_steps=2,
+        n_steps=3,
         params=params,
         animate=False,
     )
@@ -47,11 +47,13 @@ def processes():
 
     p_range = list(range(1, multiprocessing.cpu_count() + 1))
 
+    step = 0
+
     for n_processes in p_range:
         analytics = run_sim(n_processes)
-        exec_time = analytics[:, 1, Analytics.STEP_EXECUTION_TIME.value]
-        read = analytics[:, 1, Analytics.READ_TIME.value]
-        write = analytics[:, 1, Analytics.WRITE_TIME.value]
+        exec_time = analytics[:, step, Analytics.STEP_EXECUTION_TIME.value]
+        read = analytics[:, step, Analytics.READ_TIME.value]
+        write = analytics[:, step, Analytics.WRITE_TIME.value]
 
         min_t = min(exec_time)
         mean_t = exec_time.mean()

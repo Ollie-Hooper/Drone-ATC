@@ -2,6 +2,7 @@ import time
 from multiprocessing import Process, Barrier
 from multiprocessing.shared_memory import SharedMemory
 
+import importlib
 import numpy as np
 
 from drone_atc.analytics import Analyser
@@ -14,6 +15,8 @@ class MPModelManager:
     def __init__(self, config: ModelConfig):
         self.config = config
         self.model_shm = None
+
+        self.agent = importlib.import_module(f'.{self.config.agent}', __name__.split('.')[0])
 
     def go(self):
         n_model_processes = self.config.n_processes - 1 if self.config.animate else self.config.n_processes
@@ -61,7 +64,7 @@ class MPModelManager:
         return agents.reshape(n_processes, -1)
 
     def create_agent_attrs(self):
-        return np.random.random((self.config.params.n_agents, len(self.config.agent.attributes)))
+        return np.random.random((self.config.params.n_agents, len(self.agent.attributes)))
 
     def create_analytics_array(self, n_processes):
         return np.zeros((n_processes, self.config.n_steps, len(Analytics)), dtype=np.float64)
@@ -86,7 +89,7 @@ class Model(Process):
         self.agent_attrs = None
         self.analytics = None
 
-        self.agent = self.config.agent
+        self.agent = None
         self.attrs = self.config.params
         self.index = self.config.spatial_index(self.config.params.n_agents)
 
@@ -96,6 +99,8 @@ class Model(Process):
         self.model_shm.analytics.shm = SharedMemory(name=self.model_shm.analytics.shm.name)
 
     def run(self):
+        self.agent = importlib.import_module(f'.{self.config.agent}', __name__.split('.')[0])
+
         self.map = get_shm_array(self.model_shm.map)
         self.global_agent_attrs = get_shm_array(self.model_shm.agents)
         self.analytics = get_shm_array(self.model_shm.analytics)
@@ -141,7 +146,7 @@ class Model(Process):
             if agent == -1:
                 continue
             ts = time.time()
-            self.global_agent_attrs[agent] = self.agent.step(agent, self, self.agent_attrs)
+            self.global_agent_attrs[agent] = self.agent.step(agent, self.attrs, self.index, self.agent_attrs)
             te = time.time()
             times[i] = te - ts
         _te = time.time()

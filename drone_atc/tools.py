@@ -1,7 +1,7 @@
-from numba import jit
+from numba import njit
 from numpy import sqrt
 
 
-@jit(nopython=True, cache=True)
+@njit(cache=True)
 def mag(x):
     return sqrt(x.dot(x))
