@@ -10,7 +10,7 @@ from drone_atc.index import NoIndex, BruteForceIndex, RTree, Quadtree, BallTree
 from drone_atc.scheduler import MPModelManager, Model
 
 
-def run_sim(n_processes=multiprocessing.cpu_count(), n_agents=10000, index=NoIndex):
+def run_sim(n_processes=multiprocessing.cpu_count(), n_agents=10000, index=BallTree):
     params = ModelParameters(
         n_agents=n_agents,
         s=0.1,
@@ -22,7 +22,7 @@ def run_sim(n_processes=multiprocessing.cpu_count(), n_agents=10000, index=NoInd
         agent='drone',
         spatial_index=index,
         n_processes=n_processes,
-        n_steps=3,
+        n_steps=2,
         params=params,
         animate=False,
     )
@@ -47,7 +47,7 @@ def processes():
 
     p_range = list(range(1, multiprocessing.cpu_count() + 1))
 
-    step = 0
+    step = 1
 
     for n_processes in p_range:
         analytics = run_sim(n_processes)
@@ -68,7 +68,7 @@ def processes():
 
         exec_times.append(exec_time)
 
-    plt.bar(p_range, means)
+    plt.bar(p_range, maxs)
     plt.xlabel('# of processes')
     plt.ylabel('Execution time of one step (s)')
     plt.show()

@@ -1,34 +1,27 @@
 import multiprocessing
 import time
 
-from drone_atc.agent import Drone
-from drone_atc.config import ModelConfig, ModelParameters
-from drone_atc.index import NoIndex
+from drone_atc.config import ModelConfig, ModelParameters, params_from_non_dim
+from drone_atc.index import NoIndex, BallTree
 from drone_atc.scheduler import MPModelManager, Model
 
 
 def main():
     n_processes = multiprocessing.cpu_count()
-    agents_per_process = 500
-    n_steps = 1
-    animate = False
+    n_steps = 1000
+    animate = True
 
-    n_agents = 1000#agents_per_process * (n_processes - 1) if animate else agents_per_process*n_processes
+    n_agents = 500
 
-    params = ModelParameters(
-        n_agents=n_agents,
-        s=0.1,
-        a_max=0.1,
-        v_cs=0.1,
-        r_com=0.1,
-    )
+    params = params_from_non_dim(n_agents, d=0.05, T=5, Rc=10, Ra=10, A=0.01)
+
     config = ModelConfig(
-        agent=Drone,
-        spatial_index=NoIndex,
+        agent='drone',
+        spatial_index=BallTree,
         n_processes=n_processes,
         n_steps=n_steps,
         params=params,
-        animate=False,
+        animate=animate,
     )
 
     with MPModelManager(config) as model:
@@ -36,7 +29,6 @@ def main():
         analytics = model.go()
         te = time.time()
         print(te - ts)
-        print(analytics)
 
 
 if __name__ == "__main__":
