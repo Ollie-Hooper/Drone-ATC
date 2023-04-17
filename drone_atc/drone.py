@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 from numpy import sqrt, dot
 from numba import jit, njit
@@ -30,10 +32,12 @@ def step(uid, model_attrs, spatial_index, attrs: np.array) -> np.array:
     tc_max = model_attrs.tc_max
     l = model_attrs.l
     A = model_attrs.A
+    ts = time.time()
     in_range = spatial_index.agents_in_range(uid, r_com)
     in_range = np.delete(in_range, in_range == uid)
+    te = time.time()
 
-    return _step(uid, s, a_max, v_cs, in_range, tc_max, l, A, attrs)
+    return _step(uid, s, a_max, v_cs, in_range, tc_max, l, A, attrs), te-ts
 
 
 @njit(cache=True)

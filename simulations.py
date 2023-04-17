@@ -5,24 +5,19 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from drone_atc import drone
-from drone_atc.config import ModelConfig, ModelParameters, Analytics
-from drone_atc.index import NoIndex, BruteForceIndex, RTree, Quadtree, BallTree
+from drone_atc.config import ModelConfig, ModelParameters, Analytics, params_from_non_dim
+from drone_atc.index import NoIndex, BruteForceIndex, RTree, Quadtree, BallTree, Grid
 from drone_atc.scheduler import MPModelManager, Model
 
 
-def run_sim(n_processes=multiprocessing.cpu_count(), n_agents=10000, index=BallTree):
-    params = ModelParameters(
-        n_agents=n_agents,
-        s=0.1,
-        a_max=0.1,
-        v_cs=0.1,
-        r_com=0.1,
-    )
+def run_sim(n_steps=3, n_processes=multiprocessing.cpu_count(), n_agents=10000, index=BallTree):
+    params = params_from_non_dim(n_agents, d=0.01, T=5, Rc=10, Ra=10, A=0.01)
+
     config = ModelConfig(
         agent='drone',
         spatial_index=index,
         n_processes=n_processes,
-        n_steps=2,
+        n_steps=n_steps,
         params=params,
         animate=False,
     )
@@ -99,14 +94,14 @@ def processes():
 # 4000 agents: spatial index vs step execution time
 
 def index_plots():
-    x = ['None', 'Brute Force', 'RTree', 'Quadtree', 'BallTree']
+    x = ['None', 'Brute Force', 'RTree', 'Quadtree', 'BallTree', 'Grid']
 
     exec_times = []
     update_times = []
-    for index in [NoIndex, BruteForceIndex, RTree, Quadtree, BallTree]:
-        analytics = run_sim(index=index)
-        exec_times.append(analytics[0, :, Analytics.STEP_EXECUTION_TIME.value])
-        update_times.append(analytics[0, :, Analytics.INDEX_UPDATE_TIME.value])
+    for index in [NoIndex, BruteForceIndex, RTree, Quadtree, BallTree, Grid]:
+        analytics = run_sim(index=index, n_agents=2000)
+        exec_times.append(analytics[:, 1, Analytics.STEP_EXECUTION_TIME.value])
+        update_times.append(analytics[:, 1, Analytics.INDEX_UPDATE_TIME.value])
 
     exec_times = np.array(exec_times)
     update_times = np.array(update_times)
@@ -126,12 +121,14 @@ def index_plots():
 # n_agents vs step execution time
 
 def agents(index=NoIndex):
-    agent_range = np.logspace(2, 4, 20, dtype=np.int32)# np.linspace(100, 10000, 20, dtype=np.int32)
+    agent_range = np.linspace(100, 10000, 10, dtype=np.int32)
     exec_times = []
+
+    step = 2
 
     for n in agent_range:
         analytics = run_sim(n_agents=n, index=index)
-        exec_times.append(analytics[0, :, Analytics.STEP_EXECUTION_TIME.value])
+        exec_times.append(analytics[:, step, Analytics.STEP_EXECUTION_TIME.value])
 
     means = np.array(exec_times).mean(axis=1)
 
@@ -153,9 +150,9 @@ def plot_agents():
 
 
 def index_n_agents():
-    x = ['RTree', 'Quadtree', 'BallTree']
+    x = ['BallTree', 'Grid']
 
-    for index in [RTree, Quadtree, BallTree]:
+    for index in [BallTree, Grid]:
         agent_range, means = agents(index=index)
         plt.plot(agent_range, means)
     plt.xlabel('# of agents')
@@ -165,4 +162,4 @@ def index_n_agents():
 
 
 if __name__ == '__main__':
-    processes()
+    index_n_agents()

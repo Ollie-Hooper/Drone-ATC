@@ -10,6 +10,7 @@ from scipy.stats._qmc import PoissonDisk
 from drone_atc import drone
 from drone_atc.analytics import Analyser
 from drone_atc.config import SHM, ModelSHM, ModelConfig, Analytics
+from drone_atc.index import grid
 from drone_atc.shared_mem import create_shm, get_shm_array
 from drone_atc.tools import generate_poisson_disk_samples, generate_uniform_points_with_min_distance, plot_points
 
@@ -40,8 +41,8 @@ class MPModelManager:
 
         self.setup_shared_memory(process_agent_map, agent_attrs, analytics)
 
-        read_barrier = Barrier(self.config.n_processes-1)
-        write_barrier = Barrier(self.config.n_processes-1)
+        read_barrier = Barrier(self.config.n_processes)
+        write_barrier = Barrier(self.config.n_processes)
 
         processes = []
         for i in range(n_model_processes):
@@ -133,7 +134,9 @@ class Model(Process):
 
         self.agent = None
         self.attrs = self.config.params
-        self.index = self.config.spatial_index(self.config.params.n_agents)
+        self.index = self.config.spatial_index(self.config.params.n_agents, self.config.params.l, self.config.params.r_com)
+        # self.index = Grid(self.config.params.n_agents, self.config.params.l,
+        #                                        self.config.params.r_com)
 
         self.configs = mult_configs
 
@@ -161,7 +164,7 @@ class Model(Process):
                     self.recreate_agent_params(n)
                 self.config = self.configs[n]
                 self.attrs = self.config.params
-                self.index = self.config.spatial_index(self.config.params.n_agents)
+                # self.index = self.config.spatial_index(self.config.params.n_agents)
                 self.read_barrier.wait()
             self.step(i)
 
@@ -201,13 +204,15 @@ class Model(Process):
     def write(self, n):
         _ts = time.time()
         times = np.empty(len(self.map[self.id]))
+        rq_times = np.empty(len(self.map[self.id]))
         for i, agent in enumerate(self.map[self.id]):
             if agent == -1:
                 continue
             ts = time.time()
-            self.global_agent_attrs[agent] = self.agent.step(agent, self.attrs, self.index, self.agent_attrs)
+            self.global_agent_attrs[agent], rq_time = self.agent.step(agent, self.attrs, self.index, self.agent_attrs)
             te = time.time()
             times[i] = te - ts
+            rq_times[i] = rq_time
         _te = time.time()
 
         conflict_total = sum(self.global_agent_attrs[self.map[self.id]][:, drone.CONFLICTS])
@@ -224,3 +229,7 @@ class Model(Process):
         self.analytics[self.id, n, Analytics.AGENT_STEP_MAX.value] = max(times)
         self.analytics[self.id, n, Analytics.AGENT_STEP_MEAN.value] = times.mean()
         self.analytics[self.id, n, Analytics.WRITE_TIME.value] = _te - _ts
+
+        self.analytics[self.id, n, Analytics.RANGE_SEARCH_MIN.value] = min(rq_times)
+        self.analytics[self.id, n, Analytics.RANGE_SEARCH_MAX.value] = max(rq_times)
+        self.analytics[self.id, n, Analytics.RANGE_SEARCH_MEAN.value] = rq_times.mean()

@@ -6,7 +6,6 @@ import numpy as np
 from drone_atc import drone
 from drone_atc.tools import mag
 
-matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt, animation
 
 from drone_atc.config import Analytics
@@ -41,7 +40,7 @@ class Analyser(Process):
 
         def animate(i):
             self.agent_attrs[:] = self.global_agent_attrs[:]
-            # self.read_barrier.wait()
+            self.read_barrier.wait()
 
             x = self.agent_attrs[:, drone.RX]
             y = self.agent_attrs[:, drone.RY]
@@ -73,7 +72,8 @@ class Analyser(Process):
 
             ax1.set_xlim(0, self.config.params.l)
             ax1.set_ylim(0, self.config.params.l)
-            # self.write_barrier.wait()
+            self.write_barrier.wait()
 
+        matplotlib.use("TkAgg")
         ani = animation.FuncAnimation(fig, animate, interval=1)
         plt.show()
