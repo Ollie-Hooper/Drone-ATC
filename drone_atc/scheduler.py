@@ -175,8 +175,8 @@ class Model(Process):
         pass
 
     def step(self, n):
-        # if self.id == 0:
-        #     print(n)
+        if self.id == 0:
+            print(n)
         ts = time.time()
         self.read(n)
         self.update_index(n)

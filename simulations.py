@@ -10,8 +10,8 @@ from drone_atc.index import NoIndex, BruteForceIndex, RTree, Quadtree, BallTree,
 from drone_atc.scheduler import MPModelManager, Model
 
 
-def run_sim(n_steps=3, n_processes=multiprocessing.cpu_count(), n_agents=10000, index=BallTree):
-    params = params_from_non_dim(n_agents, d=0.01, T=5, Rc=10, Ra=10, A=0.01)
+def run_sim(n_steps=3, n_processes=multiprocessing.cpu_count(), n_agents=5000, index=NoIndex):
+    params = params_from_non_dim(n_agents, d=0.01, T=5, Rc=10, Ra=5, A=0.01)
 
     config = ModelConfig(
         agent='drone',
@@ -45,50 +45,62 @@ def processes():
     step = 1
 
     for n_processes in p_range:
-        analytics = run_sim(n_processes)
-        exec_time = analytics[:, step, Analytics.STEP_EXECUTION_TIME.value]
-        read = analytics[:, step, Analytics.READ_TIME.value]
-        write = analytics[:, step, Analytics.WRITE_TIME.value]
+        analytics = run_sim(n_processes=n_processes, n_steps=2, n_agents=5000)
+        # exec_time = analytics[step, :, Analytics.STEP_EXECUTION_TIME.value]
+        # read = analytics[step, :, Analytics.READ_TIME.value]
+        # write = analytics[step, :, Analytics.WRITE_TIME.value]
 
-        min_t = min(exec_time)
-        mean_t = exec_time.mean()
-        max_t = max(exec_time)
+        np.save(f'results/{n_processes}.npy', analytics)
 
-        mins.append(min_t)
-        means.append(mean_t)
-        maxs.append(max_t)
+        import pandas as pd
 
-        reads.append(read.mean())
-        writes.append(write.mean())
+        writer = pd.ExcelWriter(f'results/{n_processes}.xlsx', engine='xlsxwriter')
 
-        exec_times.append(exec_time)
+        for i in range(analytics.shape[2]):
+            df = pd.DataFrame(analytics[:, :, i])
+            df.to_excel(writer, sheet_name=f'{Analytics(i).name}')
 
-    plt.bar(p_range, maxs)
-    plt.xlabel('# of processes')
-    plt.ylabel('Execution time of one step (s)')
-    plt.show()
+        writer.close()
 
-    # perf per process
+        # min_t = min(exec_time)
+        # mean_t = exec_time.mean()
+        # max_t = max(exec_time)
+        #
+        # mins.append(min_t)
+        # means.append(mean_t)
+        # maxs.append(max_t)
+        #
+        # reads.append(read.mean())
+        # writes.append(write.mean())
+        #
+        # exec_times.append(exec_time)
 
-    process_eff = means[0] / (np.array(p_range) * means)
-    plt.bar(p_range, process_eff)
-    plt.xlabel('# of processes')
-    plt.ylabel('Process efficiency (assuming single process as 100%)')
-    plt.show()
-
-    # stacked bar
-    means = np.array(means)
-    reads = np.array(reads)
-    writes = np.array(writes)
-    misc = means - (reads + writes)
-
-    plt.bar(p_range, reads)
-    plt.bar(p_range, writes, bottom=reads)
-    plt.bar(p_range, misc, bottom=reads + writes)
-    plt.legend(['Read', 'Write', 'Misc.'])
-    plt.xlabel('# of processes')
-    plt.ylabel('Execution time of one step (s)')
-    plt.show()
+    # plt.bar(p_range, maxs)
+    # plt.xlabel('# of processes')
+    # plt.ylabel('Execution time of one step (s)')
+    # plt.show()
+    #
+    # # perf per process
+    #
+    # process_eff = means[0] / (np.array(p_range) * means)
+    # plt.bar(p_range, process_eff)
+    # plt.xlabel('# of processes')
+    # plt.ylabel('Process efficiency (assuming single process as 100%)')
+    # plt.show()
+    #
+    # # stacked bar
+    # means = np.array(means)
+    # reads = np.array(reads)
+    # writes = np.array(writes)
+    # misc = means - (reads + writes)
+    #
+    # plt.bar(p_range, reads)
+    # plt.bar(p_range, writes, bottom=reads)
+    # plt.bar(p_range, misc, bottom=reads + writes)
+    # plt.legend(['Read', 'Write', 'Misc.'])
+    # plt.xlabel('# of processes')
+    # plt.ylabel('Execution time of one step (s)')
+    # plt.show()
 
 
 # 4000 agents: spatial index vs step execution time
@@ -162,4 +174,4 @@ def index_n_agents():
 
 
 if __name__ == '__main__':
-    index_n_agents()
+    processes()

@@ -12,9 +12,9 @@ from drone_atc.scheduler import MPModelManager, Model
 
 def sweep_parameter(vary, fixed, min_val, max_val):
     index = NoIndex
-    n_processes = 8#multiprocessing.cpu_count()
+    n_processes = multiprocessing.cpu_count()
 
-    vals = np.linspace(min_val, max_val)
+    vals = np.linspace(min_val, max_val, num=50)
 
     configs = []
 
@@ -35,13 +35,27 @@ def sweep_parameter(vary, fixed, min_val, max_val):
 
     analytics = run_sim(configs)
 
-    calcs = np.sum(analytics[:, 1:, Analytics.CALCULATIONS.value], axis=0)
-    conflicts = np.sum(analytics[:, 1:, Analytics.CONFLICTS.value], axis=0)
-    avoiding = np.sum(analytics[:, 1:, Analytics.AVOIDING.value], axis=0)
-    collisions = np.sum(analytics[:, 1:, Analytics.COLLISIONS.value], axis=0)
+    np.save(f'results/{vary}.npy', analytics)
 
-    plt.plot(vals, collisions)
-    plt.show()
+    import pandas as pd
+
+    writer = pd.ExcelWriter(f'results/{fixed}.xlsx', engine='xlsxwriter')
+
+    for i in range(analytics.shape[2]):
+        df = pd.DataFrame(analytics[:, :, i])
+        df.to_excel(writer, sheet_name=f'{Analytics(i).name}')
+
+    writer.close()
+
+    print()
+
+    # calcs = np.sum(analytics[:, 1:, Analytics.CALCULATIONS.value], axis=0)
+    # conflicts = np.sum(analytics[:, 1:, Analytics.CONFLICTS.value], axis=0)
+    # avoiding = np.sum(analytics[:, 1:, Analytics.AVOIDING.value], axis=0)
+    # collisions = np.sum(analytics[:, 1:, Analytics.COLLISIONS.value], axis=0)
+    #
+    # plt.plot(vals, collisions)
+    # plt.show()
 
 
 def run_sim(config):
@@ -55,4 +69,9 @@ def run_sim(config):
 
 
 if __name__ == '__main__':
-    sweep_parameter('d', dict(Na=2000, d=0.001, T=2, Rc=10, Ra=5, A=1), 0.005, 0.5)
+    d = {
+        'd': [0.001, 0.1],
+        'T': []
+    }
+
+    sweep_parameter('d', dict(Na=2000, d=0.001, T=2, Rc=10, Ra=5, A=1), 0.001, 0.1)

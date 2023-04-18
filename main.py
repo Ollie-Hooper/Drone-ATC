@@ -7,17 +7,17 @@ from drone_atc.scheduler import MPModelManager, Model
 
 
 def main():
-    n_processes = multiprocessing.cpu_count()
+    n_processes = 8#multiprocessing.cpu_count()
     n_steps = 3
     animate = False
 
-    n_agents = 5000
+    n_agents = 1000
 
     params = params_from_non_dim(n_agents, d=0.01, T=5, Rc=10, Ra=10, A=0.01)
 
     config = ModelConfig(
         agent='drone',
-        spatial_index=Grid,
+        spatial_index=NoIndex,
         n_processes=n_processes,
         n_steps=n_steps,
         params=params,

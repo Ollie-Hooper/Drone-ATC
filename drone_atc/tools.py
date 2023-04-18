@@ -96,7 +96,7 @@ def generate_poisson_disk_samples(square_size, min_distance, num_points, max_att
 #
 #     return points
 
-@njit(cache=True)
+# @njit(cache=True)
 def generate_uniform_points_with_min_distance(square_size, min_distance, num_points):
     cell_size = square_size / np.sqrt(num_points)
     num_cells = int(np.ceil(square_size / cell_size))
@@ -128,6 +128,7 @@ def generate_uniform_points_with_min_distance(square_size, min_distance, num_poi
         rx[idx] = x
         ry[idx] = y
 
+    print('yah')
     return rx, ry
 
 
