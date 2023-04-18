@@ -8,12 +8,12 @@ from drone_atc.tools import mag
 
 from matplotlib import pyplot as plt, animation
 
-from drone_atc.config import Analytics
+from drone_atc.analytics_config import Analytics
 from drone_atc.shared_mem import get_shm_array
 
 
 class Analyser(Process):
-    def __init__(self, config, model_shm, read_barrier, write_barrier):
+    def __init__(self, config, model_shm, read_barrier, write_barrier, snapshots=True):
         super().__init__()
         self.config = config
         self.model_shm = model_shm
@@ -22,6 +22,7 @@ class Analyser(Process):
         self.analytics = None
         self.global_agent_attrs = None
         self.agent_attrs = None
+        self.snapshots = snapshots
 
     def run(self):
         self.analytics = get_shm_array(self.model_shm.analytics)
@@ -31,7 +32,7 @@ class Analyser(Process):
         l = self.config.params.l
         safety_disc_rad = self.config.params.s
 
-        fig = plt.figure(figsize=(10, 10))
+        fig = plt.figure(figsize=(5, 5))
         ax1 = fig.add_subplot(1, 1, 1)
         ax1.set_xlim(0, l)
         ax1.set_ylim(0, l)
@@ -65,15 +66,23 @@ class Analyser(Process):
 
             ax1.scatter(x, y, c=colour, s=s)
 
-            for i, d in enumerate(v):
-                d = 2 * safety_disc_rad * d / mag(d)
-                ax1.arrow(x[i], y[i], d[0], d[1], width=safety_disc_rad / 5, head_length=safety_disc_rad / 2.5,
-                          length_includes_head=True, color=colour[i])
+            # for i, d in enumerate(v):
+            #     d = 2 * safety_disc_rad * d / mag(d)
+            #     ax1.arrow(x[i], y[i], d[0], d[1], width=safety_disc_rad / 5, head_length=safety_disc_rad / 2.5,
+            #               length_includes_head=True, color=colour[i])
 
             ax1.set_xlim(0, self.config.params.l)
             ax1.set_ylim(0, self.config.params.l)
+            plt.show()
             self.write_barrier.wait()
 
-        matplotlib.use("TkAgg")
-        ani = animation.FuncAnimation(fig, animate, interval=1)
-        plt.show()
+        if self.snapshots:
+            i = 0
+            while True:
+                animate(i)
+                i += 1
+        else:
+            matplotlib.use("TkAgg")
+            ani = animation.FuncAnimation(fig, animate, interval=1)
+            plt.show()
+

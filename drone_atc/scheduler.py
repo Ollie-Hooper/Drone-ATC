@@ -9,7 +9,8 @@ from scipy.stats._qmc import PoissonDisk
 
 from drone_atc import drone
 from drone_atc.analytics import Analyser
-from drone_atc.config import SHM, ModelSHM, ModelConfig, Analytics
+from drone_atc.config import SHM, ModelSHM, ModelConfig
+from drone_atc.analytics_config import Analytics
 from drone_atc.index import grid
 from drone_atc.shared_mem import create_shm, get_shm_array
 from drone_atc.tools import generate_poisson_disk_samples, generate_uniform_points_with_min_distance, plot_points

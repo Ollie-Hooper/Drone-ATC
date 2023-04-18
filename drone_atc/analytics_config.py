@@ -1,0 +1,18 @@
+from enum import Enum
+
+
+class Analytics(Enum):
+    STEP_EXECUTION_TIME = 0
+    READ_TIME = 1
+    WRITE_TIME = 2
+    INDEX_UPDATE_TIME = 3
+    AGENT_STEP_MIN = 4
+    AGENT_STEP_MAX = 5
+    AGENT_STEP_MEAN = 6
+    CONFLICTS = 7
+    CALCULATIONS = 8
+    AVOIDING = 9
+    COLLISIONS = 10
+    RANGE_SEARCH_MIN = 11
+    RANGE_SEARCH_MAX = 12
+    RANGE_SEARCH_MEAN = 13

@@ -5,7 +5,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from drone_atc import drone
-from drone_atc.config import ModelConfig, ModelParameters, Analytics, params_from_non_dim
+from drone_atc.config import ModelConfig, ModelParameters, params_from_non_dim
+from drone_atc.analytics_config import Analytics
 from drone_atc.index import NoIndex, BruteForceIndex, RTree, Quadtree, BallTree, Grid
 from drone_atc.scheduler import MPModelManager, Model
 

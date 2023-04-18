@@ -93,8 +93,8 @@ class BallTree(BaseIndex):
 
 
 class Grid(BaseIndex):
-    def __init__(self, n_agents, l, r):
-        self.gcs = r*0.5
+    def __init__(self, n_agents, l, r, gcs=0.5):
+        self.gcs = r*gcs
         self.num_rows_cols = int(l / self.gcs)
         self.gcs = l / self.num_rows_cols
         self.grid = None

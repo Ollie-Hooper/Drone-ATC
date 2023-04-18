@@ -1,6 +1,9 @@
+import pandas as pd
 from matplotlib import pyplot as plt
 from numba import njit
 from numpy import sqrt
+
+from drone_atc.analytics_config import Analytics
 
 
 @njit(cache=True)
@@ -96,7 +99,7 @@ def generate_poisson_disk_samples(square_size, min_distance, num_points, max_att
 #
 #     return points
 
-# @njit(cache=True)
+@njit(cache=True)
 def generate_uniform_points_with_min_distance(square_size, min_distance, num_points):
     cell_size = square_size / np.sqrt(num_points)
     num_cells = int(np.ceil(square_size / cell_size))
@@ -128,7 +131,6 @@ def generate_uniform_points_with_min_distance(square_size, min_distance, num_poi
         rx[idx] = x
         ry[idx] = y
 
-    print('yah')
     return rx, ry
 
 
@@ -143,3 +145,13 @@ def plot_points(rx, ry, min_radius, square_size):
 
     plt.gca().set_aspect('equal', adjustable='box')
     plt.show()
+
+
+def dump_analytics(analytics, fname):
+    writer = pd.ExcelWriter(f'results/{fname}.xlsx', engine='xlsxwriter')
+
+    for i in range(analytics.shape[2]):
+        df = pd.DataFrame(analytics[:, :, i])
+        df.to_excel(writer, sheet_name=f'{Analytics(i).name}')
+
+    writer.close()
