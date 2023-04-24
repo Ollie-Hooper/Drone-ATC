@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+import memray
 import numpy as np
 import shapely
 from numba import njit

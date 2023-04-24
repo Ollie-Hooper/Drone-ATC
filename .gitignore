@@ -4,3 +4,8 @@
 *.DS_Store
 *__pycache__
 results/
+*.pdf
+*.csv
+*.txt
+*.npy
+*.xlsx

@@ -9,10 +9,11 @@ from drone_atc.config import ModelConfig, ModelParameters, params_from_non_dim
 from drone_atc.analytics_config import Analytics
 from drone_atc.index import NoIndex, BruteForceIndex, RTree, Quadtree, BallTree, Grid
 from drone_atc.scheduler import MPModelManager, Model
+from drone_atc.tools import dump_analytics
 
 
 def run_sim(n_steps=3, n_processes=multiprocessing.cpu_count(), n_agents=5000, index=NoIndex):
-    params = params_from_non_dim(n_agents, d=0.01, T=5, Rc=10, Ra=5, A=0.01)
+    params = params_from_non_dim(n_agents, d=0.01, T=4, Rc=20, Ra=10, A=0.01)
 
     config = ModelConfig(
         agent='drone',
@@ -46,22 +47,12 @@ def processes():
     step = 1
 
     for n_processes in p_range:
-        analytics = run_sim(n_processes=n_processes, n_steps=2, n_agents=5000)
+        analytics = run_sim(n_processes=n_processes, n_steps=3, n_agents=5000)
         # exec_time = analytics[step, :, Analytics.STEP_EXECUTION_TIME.value]
         # read = analytics[step, :, Analytics.READ_TIME.value]
         # write = analytics[step, :, Analytics.WRITE_TIME.value]
 
-        np.save(f'results/{n_processes}.npy', analytics)
-
-        import pandas as pd
-
-        writer = pd.ExcelWriter(f'results/{n_processes}.xlsx', engine='xlsxwriter')
-
-        for i in range(analytics.shape[2]):
-            df = pd.DataFrame(analytics[:, :, i])
-            df.to_excel(writer, sheet_name=f'{Analytics(i).name}')
-
-        writer.close()
+        dump_analytics(analytics, n_processes)
 
         # min_t = min(exec_time)
         # mean_t = exec_time.mean()

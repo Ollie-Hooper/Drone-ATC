@@ -3,6 +3,8 @@ from multiprocessing import Process, Barrier
 from multiprocessing.shared_memory import SharedMemory
 
 import importlib
+
+import memray
 import numpy as np
 from numpy import pi, cos, sin
 from scipy.stats._qmc import PoissonDisk
@@ -141,6 +143,8 @@ class Model(Process):
 
         self.configs = mult_configs
 
+        self.n_agents = None
+
     def reconnect_shm(self):
         self.model_shm.map.shm = SharedMemory(name=self.model_shm.map.shm.name)
         self.model_shm.agents.shm = SharedMemory(name=self.model_shm.agents.shm.name)
@@ -157,6 +161,11 @@ class Model(Process):
         self.agent_attrs[:] = self.global_agent_attrs[:]
 
         n_steps = self.config.n_steps
+
+        if (idx := np.argwhere(self.map[self.id] == -1)).any():
+            self.n_agents = idx[0][0]
+        else:
+            self.n_agents = len(self.map[self.id])
 
         for i in range(n_steps):
             if self.configs and i:
@@ -204,8 +213,8 @@ class Model(Process):
 
     def write(self, n):
         _ts = time.time()
-        times = np.empty(len(self.map[self.id]))
-        rq_times = np.empty(len(self.map[self.id]))
+        times = np.empty(self.n_agents)
+        rq_times = np.empty(self.n_agents)
         for i, agent in enumerate(self.map[self.id]):
             if agent == -1:
                 continue

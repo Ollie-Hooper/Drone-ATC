@@ -35,7 +35,7 @@ def bulk_sim(n_processes, n_sims):
         ==================SIM {i+1}/{n_sims}==================
         """)
         for j in range(n_processes):
-            config.n_processes = j+5
+            config.n_processes = j+1
             analytics = run_sim(config)
             ses[i, j, 0] = np.mean(analytics[:, step, Analytics.STEP_EXECUTION_TIME.value], axis=0)
             read[i, j, 0] = np.mean(analytics[:, step, Analytics.READ_TIME.value], axis=0)
@@ -51,9 +51,9 @@ def bulk_sim(n_processes, n_sims):
         te = time.time()
         print(f'Took {te-ts}')
 
-    np.save('results/ses.npy', ses)
-    np.save('results/read.npy', read)
-    np.save('results/write.npy', write)
+        np.save('results/ses.npy', ses)
+        np.save('results/read.npy', read)
+        np.save('results/write.npy', write)
 
 
 def run_sim(config):
@@ -67,4 +67,4 @@ def run_sim(config):
 
 
 if __name__ == '__main__':
-    bulk_sim(3, 5)
+    bulk_sim(multiprocessing.cpu_count(), 50)

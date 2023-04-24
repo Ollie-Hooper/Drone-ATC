@@ -58,3 +58,4 @@ class ModelConfig:
     n_steps: int
     params: ModelParameters
     animate: bool
+    index_params: dict

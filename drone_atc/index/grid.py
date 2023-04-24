@@ -2,6 +2,8 @@ import numpy as np
 from numba import njit
 from numba.typed import List
 
+from drone_atc.tools import mag
+
 
 @njit(cache=True)
 def update(grid, secondary_index, initialised, num_rows_cols, gcs, agents):
@@ -54,7 +56,13 @@ def agents_in_range(grid, secondary_index, num_rows_cols, gcs, agent: int, r: fl
 
     for row in range(min_row, max_row + 1):
         for col in range(min_col, max_col + 1):
-            in_range.extend(list(grid[row][col]))
+            for alt in grid[row][col]:
+                r_a = secondary_index[agent][:2]
+                r_b = secondary_index[alt][:2]
+                r_ab = r_b - r_a
+                if mag(r_ab) <= r:
+                    in_range.append(alt)
+            # in_range.extend(list(grid[row][col]))
 
     # cells = get_circle_cells(r, cx, cy, gcs, num_rows_cols)
 
